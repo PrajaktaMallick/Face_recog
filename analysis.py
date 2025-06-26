@@ -2,6 +2,21 @@ import cv2
 from deepface import DeepFace
 import numpy as np
 import time
+import json
+
+def convert_to_json_serializable(obj):
+    if isinstance(obj, (np.integer, np.int32, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float32, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    else:
+        return obj
 
 def analyze_face_features_advanced(image, selected_features=['age', 'gender', 'emotion', 'race']):
     start_time = time.time()
@@ -47,12 +62,12 @@ def analyze_face_features_advanced(image, selected_features=['age', 'gender', 'e
         analysis_results = {}
         metadata = {
             'processing_time': round(time.time() - start_time, 2),
-            'face_region': result.get('region', {}),
-            'detection_confidence': calculate_detection_confidence(result)
+            'face_region': convert_to_json_serializable(result.get('region', {})),
+            'detection_confidence': float(calculate_detection_confidence(result))
         }
 
         if 'age' in features_to_analyze:
-            age_value = int(result['age'])
+            age_value = int(convert_to_json_serializable(result['age']))
             age_category = get_age_category(age_value)
             age_range = get_age_range(age_value)
 
@@ -62,7 +77,7 @@ def analyze_face_features_advanced(image, selected_features=['age', 'gender', 'e
                 'category_emoji': age_category['emoji'],
                 'display': f"{age_value} years old ({age_category['category']})",
                 'range': age_range,
-                'confidence': 90.0,  # Age prediction confidence
+                'confidence': 90.0,
                 'detailed_info': {
                     'exact_age': age_value,
                     'age_group': age_category['category'],
@@ -72,40 +87,43 @@ def analyze_face_features_advanced(image, selected_features=['age', 'gender', 'e
             }
 
         if 'gender' in features_to_analyze:
-            gender = result['dominant_gender']
-            confidence = result['gender'][gender]
+            gender = str(result['dominant_gender'])
+            confidence = convert_to_json_serializable(result['gender'][gender])
             analysis_results['gender'] = {
                 'value': gender,
                 'display': gender.capitalize(),
-                'confidence': round(confidence, 1),
-                'all_scores': {k: round(v, 1) for k, v in result['gender'].items()}
+                'confidence': round(float(confidence), 1),
+                'all_scores': {k: round(float(convert_to_json_serializable(v)), 1) for k, v in result['gender'].items()}
             }
 
         if 'emotion' in features_to_analyze:
-            emotion = result['dominant_emotion']
-            confidence = result['emotion'][emotion]
+            emotion = str(result['dominant_emotion'])
+            confidence = convert_to_json_serializable(result['emotion'][emotion])
             analysis_results['emotion'] = {
                 'value': emotion,
                 'display': format_emotion_display(emotion),
-                'confidence': round(confidence, 1),
-                'all_scores': {k: round(v, 1) for k, v in result['emotion'].items()}
+                'confidence': round(float(confidence), 1),
+                'all_scores': {k: round(float(convert_to_json_serializable(v)), 1) for k, v in result['emotion'].items()}
             }
 
         if 'race' in features_to_analyze:
-            race = result['dominant_race']
-            confidence = result['race'][race]
+            race = str(result['dominant_race'])
+            confidence = convert_to_json_serializable(result['race'][race])
             analysis_results['race'] = {
                 'value': race,
                 'display': format_race_display(race),
-                'confidence': round(confidence, 1),
-                'all_scores': {k: round(v, 1) for k, v in result['race'].items()}
+                'confidence': round(float(confidence), 1),
+                'all_scores': {k: round(float(convert_to_json_serializable(v)), 1) for k, v in result['race'].items()}
             }
 
-        return {
+        # Ensure everything is JSON serializable before returning
+        final_result = {
             'success': True,
-            'data': analysis_results,
-            'metadata': metadata
+            'data': convert_to_json_serializable(analysis_results),
+            'metadata': convert_to_json_serializable(metadata)
         }
+
+        return final_result
 
     except Exception as e:
         error_message = str(e)
